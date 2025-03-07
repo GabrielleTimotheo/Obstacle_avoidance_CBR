@@ -10,12 +10,8 @@ class CBR:
         self.previous_clusters = None # Store previous clusters
         self.extra_margin = 0.2 # Extra margin to consider noise
         self.previous_time = None # Store previous time
-        self.dt = 0 # Time step
 
-        self.distancia_alvo = None  # Distância alvo a ser mantida
-        self.tolerancia_distancia = None  # Tolerância de comparação
-        self.v_base = None # Velocidade linear base
-        self.w_base = None # Velocidade angular base
+        self.tol = 0.1 # Tolerance for distance
 
         # DataBase
         self.db = cases.CaseDatabase()
@@ -129,55 +125,72 @@ class CBR:
             list: List of similar cases.
         """
 
-        self.db.SearchSimilarCase(min_dist, angle, scenario)
+        return self.db.SearchSimilarCase(min_dist, angle, scenario)
 
-    def prever_distancia_apos(self, distancia_inicial, v, w, delta_t):
+    def PredictDistance(self, dist_inicial, v, w, dt):
         """
-        Prever a nova distância após o DWA e fuzzy com base na velocidade linear (v) e angular (w).
+        Predict the distance to the obstacle after a time step.
         
         Args:
-            distancia_inicial (float): Distância inicial ao obstáculo.
-            v (float): Velocidade linear.
-            w (float): Velocidade angular.
-            delta_t (float): Intervalo de tempo para o movimento.
-
+            dist_inicial (float): Initial distance to the obstacle.
+            v (float): Linear velocity.
+            w (float): Angular velocity.
+            dt (float): Time step.
+        
         Returns:
-            float: Nova distância ao obstáculo.
+            float: Predicted distance to the obstacle.
         """
-        deslocamento = v * delta_t  # Deslocamento linear
-        delta_theta = w * delta_t  # Rotação angular
 
-        # A nova distância ao obstáculo pode ser estimada como uma aproximação
-        distancia_final = distancia_inicial - (deslocamento * math.cos(delta_theta))
+        dS = v*dt # Linear displacement
+        dTheta = w*dt # Angular displacement
+
+        # Cosine rule
+        new_min_dist = dS**2 + dist_inicial**2 + -2*dS*dist_inicial*math.cos(dTheta)
+
+        return new_min_dist
+
+    def Revise(self, min_dist, best_v, best_w, dt, v_case, w_case):
+        """
+        Revise and adjust new solution after DWA and Fuzzy.
         
-        return distancia_final
+        Args:
+            min_dist (float): Minimum distance to the obstacle.
+            best_v (float): Best linear velocity.
+            best_w (float): Best angular velocity.
+            dt (float): Time step.
+        
+        Returns:
+            tuple: New linear and angular velocities.
+        """
 
-    def AdjustSpeed(self, distancia_media, distancia_anterior):
+        # Distance to the obstacle after performing the best velocities
+        dist_predicted = self.PredictDistance(min_dist, best_v, best_w, dt)
+        dist_after = self.PredictDistance(min_dist, v_case, w_case, dt)
 
-        """Ajusta as velocidades baseadas na comparação da distância média com a distância alvo"""
-        np.mean(distancias_lidar)
+        # Distance difference between the predicted and the actual distance
+        diff_dist = abs(min_dist - dist_predicted)
+        diff_dist_case = abs(min_dist - dist_after)
 
-        if distancia_media > self.distancia_alvo + tolerancia_distancia:
-            # Se a distância média for maior do que a desejada, reduzir velocidade
-            v_ajustada = self.v_base * 0.8  # Exemplo de redução
-            w_ajustada = self.w_base * 0.9  # Exemplo de redução
-        elif distancia_media < self.distancia_alvo - tolerancia_distancia:
-            # Se a distância média for menor, aumentar velocidade
-            v_ajustada = self.v_base * 1.2  # Exemplo de aumento
-            w_ajustada = self.w_base * 1.1  # Exemplo de aumento
+        if diff_dist > self.tol:
+            # If the average distance is greater than the desired, decrease the velocity
+            new_v = best_v * 0.8  
+            new_w = best_w * 0.9 
+
+        elif diff_dist < self.tol:
+            # If the average distance is smaller, increase the velocity
+            new_v = best_v * 1.2  
+            new_w = best_w * 1.1  
         else:
-            # Se a distância estiver dentro da tolerância, manter as velocidades
-            v_ajustada = self.v_base
-            w_ajustada = self.w_base
+            return None, None
 
-        return v_ajustada, w_ajustada
-
-    def Revise(self, min_dist, angle, v, w):
+        if diff_dist < diff_dist_case:
+            return new_v, new_w
         
-        new_v, new_w = self.AdjustSpeed(distancia_media, distancia_anterior)
-        
-        return new_v, new_w
+        else:
+            return None, None
 
-    def Retain(self, min_dist, angle, scenario, dist_after, angle_after):
+    def Retain(self, case, min_dist, angle, scenario, v, w):
 
-        self.db.AddCase(min_dist, angle, scenario, dist_after, angle_after)
+        if case == "New case":
+
+            self.db.AddCase(min_dist, angle, scenario, v, w)

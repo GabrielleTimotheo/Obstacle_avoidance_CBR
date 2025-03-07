@@ -436,8 +436,8 @@ class ObstacleAvoidance:
         num_readings = len(self.valid_ranges)
 
         # Convert angle to the corresponding index in the Lidar
-        fov_index = int((angle_min - theta) /
-                        (angle_max - angle_min) * num_readings)
+        fov_index = int((theta - angle_min) /
+                (angle_max - angle_min) * num_readings)
 
         # Guarantees that the index is within the array limits
         fov_index = np.clip(fov_index, 0, num_readings - 1)
@@ -576,12 +576,14 @@ class ObstacleAvoidance:
         # Calculate the relative angle between the robot and the closest obstacle
         angle_increment = (
             self.angle_max - self.angle_min) / len(self.valid_ranges)
-        obstacle_angle = (center_index - 
-                        (start_index + min_index)) * angle_increment
+        # obstacle_angle = (center_index - 
+        #                 (start_index + min_index)) * angle_increment
+        obstacle_angle = ( (start_index + min_index) - 
+                            center_index) * angle_increment
 
         if min_distance == float('inf'):
             return 1000, obstacle_angle
-        
+
         return min_distance, obstacle_angle
 
     def averageFilter(self, window_size=10):
@@ -608,14 +610,47 @@ class ObstacleAvoidance:
     # region AUXILIARY FUNCTIONS
     ############################################################################
 
-    def CBRAnalysis(self):
+    def CBRAnalysis(self, main_dt):
+        """
+        Perform the CBR analysis to adjust the solution.
         
-        # Retrive
-        self.cbr.Retrieve(self.closest_obstacle_distance, self.obstacle_angle, self.scenario)
+        Args:
+            main_dt (float): Main time step.
 
-        #Revise
-        self.cbr.Revise(self.closest_obstacle_distance, self.obstacle_angle, self.best_v, self.best_w)
+        Returns:
+            str: Case status (New case or Old case).
+        """
+        
+        # Retrive case information
+        _, _, _, v_case, w_case = self.cbr.Retrieve(self.closest_obstacle_distance, self.obstacle_angle, self.scenario)
 
+        # If there is no similar case
+        if v_case is None or w_case is None:
+
+            print("No similar case")
+
+            return "New case"
+
+        # Revise and adjust new solution after DWA and Fuzzy
+        new_v, new_w = self.cbr.Revise(self.closest_obstacle_distance, self.best_v, self.best_w, main_dt, v_case, w_case)
+
+        # If the new solution is better then the case one, update velocities
+        if new_v is not None and new_w is not None:
+            
+            self.best_v = new_v
+            self.best_w = new_w
+
+            print("Modified case")
+
+            return "New case"
+
+        else:
+            self.best_v = v_case
+            self.best_w = w_case
+
+            print("Old case")
+
+            return "Old case"
 
     def AdjustLaserScan(self, scan):
         """
@@ -640,8 +675,10 @@ class ObstacleAvoidance:
     ############################################################################
 
     def laserScanCallback(self, scan) -> None:
-        """ We use lidar points to define obstacle in baselink frame and find the available path that is the closest to the waypoint we should travel to.
+        """ 
+        We use lidar points to define obstacle in baselink frame and find the available path that is the closest to the waypoint we should travel to.
         We work with two main frames: baselink and world
+
         Baselink: X forward, Y left of the vehicle. 0~360 degrees, counter-clockwise, 0 is in the back
         World: latlon, so X (lat) points up and Y (lon) points to the right. 0~360 degrees, clockwise, 0 is in positive X 
         """
@@ -659,13 +696,12 @@ class ObstacleAvoidance:
 
         # Verify the distance to the closest obstacle for 60 degrees in front of the robot
         closest_in_fov_60, obstacle_angle_60 = self.closestObstacleInCentralFov(
-            fov_positions=148) # 107
+            fov_positions=148)
 
         # Verify the distance to the closest obstacle for 270 degrees in front of the robot
         closest_in_fov_260, obstacle_angle_260 = self.closestObstacleInCentralFov(
-            fov_positions=640) #480
+            fov_positions=640)
 
-        # if self.best_v is not None and self.best_w is not None:
         if closest_in_fov_60 > self.safety_distance_to_start:
             closest_in_fov = closest_in_fov_260
             self.obstacle_angle = np.degrees(obstacle_angle_260)
@@ -683,15 +719,22 @@ class ObstacleAvoidance:
             # REPLAN VELOCITY - DWA
             self.best_v, self.best_w = self.replanVelocity()
 
-            if time() - self.last_command_time >= self.dt:
+            main_dt = time() - self.last_command_time
+
+            if main_dt >= self.dt:
                 
                 # CBR Analysis
-                self.CBRAnalysis()
+                case = self.CBRAnalysis(main_dt)
 
                 self.setFlightMode(mode="GUIDED")
                 self.sendGuidedPointLocalFrame(
                     self.best_v, self.best_w)
                 self.last_command_time = time()
+
+                obstacle_angle = np.deg2rad(self.obstacle_angle)
+
+                # Retain performed obstacle avoidance
+                self.cbr.Retain(case, self.closest_obstacle_distance, obstacle_angle, self.scenario, self.best_v, self.best_w)
 
                 # Results conference
                 rospy.loginfo(

@@ -21,13 +21,9 @@ class Fuzzy:
         self.distance_to_obstacle['distant'] = fuzz.sigmf(
         self.distance_to_obstacle.universe, 4.5, 6)
 
-        # self.angle['lateral_right'] = fuzz.trapmf(self.angle.universe, [-180, -120, -60, -30])
-        # self.angle['frontal'] = fuzz.gaussmf(self.angle.universe, 0, 20)  # Média 0, desvio 20 para suavizar
-        # self.angle['lateral_left'] = fuzz.trapmf(self.angle.universe, [30, 60, 120, 180])
-
-        self.angle['lateral_right'] = fuzz.trapmf(self.angle.universe, [-180, -120, -60, -30])
+        self.angle['lateral_left'] = fuzz.trapmf(self.angle.universe, [-180, -120, -60, -30])
         self.angle['frontal'] = fuzz.gaussmf(self.angle.universe, 0, 10)  # Média 0, desvio 20 para suavizar
-        self.angle['lateral_left'] = fuzz.trapmf(self.angle.universe, [30, 60, 120, 180])
+        self.angle['lateral_right'] = fuzz.trapmf(self.angle.universe, [30, 60, 120, 180])
 
         # Define membership functions for output variables
         self.alpha['low'] = fuzz.trimf(self.alpha.universe, [0, 0, 0.6])
