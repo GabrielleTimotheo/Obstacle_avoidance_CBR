@@ -11,12 +11,17 @@ class CBR:
         self.extra_margin = 0.2 # Extra margin to consider noise
         self.previous_time = None # Store previous time
 
-        self.tol = 0.1 # Tolerance for distance
+        self.tol = 0.2 # Tolerance for distance
+
+        self.max_v = 2.55  # Maximum linear velocity 2.55
+        self.max_w = np.pi  # Maximum angular velocity np.pi/2
+        self.max_acc_v = 0.5  # Maximum linear acceleration 0.5
+        self.max_acc_w = np.pi/2  # Maximum angular acceleration
 
         # DataBase
         self.db = cases.CaseDatabase()
 
-    def FindScenario(self, valid_ranges, v, current_time):
+    def FindScenario(self, valid_ranges, v, current_time, fov_positions=160, center_index=320):
         """
         Identify scenario based on the clusters found in the data.
         
@@ -26,8 +31,16 @@ class CBR:
             current_time (float): Current time.
         
         Returns:
-            None
+            str: Detected scenario.
         """
+
+        # New index for the angle range considered
+        half_fov = fov_positions // 2
+        start_index = center_index - half_fov
+        end_index = center_index + half_fov
+
+        # Get the distances within the central field of view
+        valid_ranges = valid_ranges[start_index:end_index]
 
         # Filter long distances
         valid_ranges = valid_ranges[valid_ranges < 1e6]
@@ -70,6 +83,8 @@ class CBR:
         # Unknown scenario
         elif n_clusters > 2:
             return "Unknown scenario"
+        else:
+            return None
 
     def DetectMovingObstacle(self, valid_ranges, labels, v):
         """
@@ -111,6 +126,25 @@ class CBR:
                 return True  # Movement detected
 
         return False  # No movement detected
+    
+    def dynamicWindowSafetyStop(self, dist_obst, w):
+        """
+        Calculate dynamic window to ensure that the robot can stop in time to avoid a collision.
+        Based on dynamic restriction.
+
+        Args:
+            dist_obst (float): distance to the closest obstacle.
+        Returns:
+            safe_v_max (float): maximal linear velocity to stop in time,
+            safe_w_max (float): maximal angular velocity to stop in time."""
+
+        safe_v_max = min(np.sqrt(2 * dist_obst * self.max_acc_v), self.max_v)
+        safe_w_max = np.sign(w) * np.sqrt(2 * dist_obst * self.max_acc_w)
+
+        # Guarantees that the velocities are within the robot limits
+        safe_w_max = np.clip(safe_w_max, -self.max_w, self.max_w)
+
+        return safe_v_max, safe_w_max
 
     def Retrieve(self, min_dist, angle, scenario):
         """
@@ -164,31 +198,47 @@ class CBR:
         """
 
         # Distance to the obstacle after performing the best velocities
-        dist_predicted = self.PredictDistance(min_dist, best_v, best_w, dt)
-        dist_after = self.PredictDistance(min_dist, v_case, w_case, dt)
+        dist_predicted_best = self.PredictDistance(min_dist, best_v, best_w, dt) # Use velocities from DWA and Fuzzy
+        dist_predicted_case = self.PredictDistance(min_dist, v_case, w_case, dt) # Use velocities from past case
 
         # Distance difference between the predicted and the actual distance
-        diff_dist = abs(min_dist - dist_predicted)
-        diff_dist_case = abs(min_dist - dist_after)
+        diff_dist_best = abs(min_dist - dist_predicted_best)
+        diff_dist_case = abs(min_dist - dist_predicted_case)
 
-        if diff_dist > self.tol:
-            # If the average distance is greater than the desired, decrease the velocity
+        #-------------------------PROPOSE NEW VELOCITIES MODIFYING THE BEST-------------------------#
+        if diff_dist_best > self.tol:
+            # If the distance is greater than the desired, decrease the velocity
             new_v = best_v * 0.8  
             new_w = best_w * 0.9 
 
-        elif diff_dist < self.tol:
-            # If the average distance is smaller, increase the velocity
-            new_v = best_v * 1.2  
-            new_w = best_w * 1.1  
-        else:
-            return None, None
+        elif diff_dist_best < self.tol:
+            # If the distance is smaller than the desired, increase the velocity
+            new_v = best_v * 1.2
+            new_w = best_w * 1.1
 
-        if diff_dist < diff_dist_case:
-            return new_v, new_w
+        dist_predicted_modified = self.PredictDistance(min_dist, new_v, new_w , dt)
+        diff_modified = abs(min_dist - dist_predicted_modified)
+    
+        #---------------CHECK IF IT'LL WON'T CRASH------------------#
+
+        safe_v_max, safe_w_max = self.dynamicWindowSafetyStop(
+            min_dist, new_w)
         
-        else:
-            return None, None
+        if safe_w_max > 0 and new_w > 0:
 
+            if safe_v_max < new_v or safe_w_max < new_w:
+                return None, None, "New case" # Send the best if it's not safe
+        else:
+            if safe_v_max < new_v or safe_w_max > new_w:
+                return None, None, "New case"  # Send the best if it's not safe
+
+        #---------------COMPARE TO SEE WHICH VELOCITY IS BETTER------------------#
+
+        if diff_modified < diff_dist_case:
+            return new_v, new_w, "New case"
+        else:
+            return v_case, w_case, "Old Case"   
+            
     def Retain(self, case, min_dist, angle, scenario, v, w):
 
         if case == "New case":

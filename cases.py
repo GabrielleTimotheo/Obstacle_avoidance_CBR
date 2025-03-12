@@ -1,4 +1,5 @@
 import sqlite3
+import math
 
 class CaseDatabase:
     def __init__(self, db_name='casos.db'):
@@ -64,7 +65,7 @@ class CaseDatabase:
         except Exception as e:
             print(f"Erro ao adicionar caso: {e}")
 
-    def SearchSimilarCase(self, distancia_obstaculo, angulo_obstaculo, cenario, tolerance_distance=1.0, tolerance_angle=0.61):
+    def SearchSimilarCase(self, distancia_obstaculo, angulo_obstaculo, cenario, tolerance_distance=3.0, tolerance_angle=3.14):
         """
         Search for similar cases in the database.
         
@@ -80,18 +81,32 @@ class CaseDatabase:
         conn = self._connect()
         c = conn.cursor()
 
+        angulo_min = angulo_obstaculo - tolerance_angle
+        angulo_max = angulo_obstaculo + tolerance_angle
+
+        # Ajuste cíclico para garantir que a busca considere os limites corretamente
+        if angulo_min > angulo_max:
+            angulo_min, angulo_max = angulo_max, angulo_min
+
         c.execute('''
             SELECT * FROM casos 
             WHERE cenarios = ? AND 
                   distancia_obstaculo BETWEEN ? AND ? AND 
                   angulo_obstaculo BETWEEN ? AND ?
-        ''', (cenario, distancia_obstaculo - tolerance_distance, distancia_obstaculo + tolerance_distance, angulo_obstaculo - tolerance_angle, angulo_obstaculo + tolerance_angle))
+        ''', (cenario, distancia_obstaculo - tolerance_distance, distancia_obstaculo + tolerance_distance, angulo_min, angulo_max))
 
         casos = c.fetchall()
         conn.close()
-        print(casos)
-        return casos if casos else None, None, None, None, None # Return None if no similar cases are found
 
+        if not casos:
+            return None # Return None if no similar cases are found
+        
+        casos_ordenados = sorted(casos, key=lambda case: 
+            abs(case[1] - distancia_obstaculo) / tolerance_distance + 
+            abs(case[2] - angulo_obstaculo) / tolerance_angle
+        )
+        return casos_ordenados[0] 
+            
     def AllCases(self):
         """
         Retrieve all cases from the database.

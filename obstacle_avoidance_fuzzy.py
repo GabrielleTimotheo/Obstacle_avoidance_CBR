@@ -576,8 +576,6 @@ class ObstacleAvoidance:
         # Calculate the relative angle between the robot and the closest obstacle
         angle_increment = (
             self.angle_max - self.angle_min) / len(self.valid_ranges)
-        # obstacle_angle = (center_index - 
-        #                 (start_index + min_index)) * angle_increment
         obstacle_angle = ( (start_index + min_index) - 
                             center_index) * angle_increment
 
@@ -622,17 +620,20 @@ class ObstacleAvoidance:
         """
         
         # Retrive case information
-        _, _, _, v_case, w_case = self.cbr.Retrieve(self.closest_obstacle_distance, self.obstacle_angle, self.scenario)
+        case = self.cbr.Retrieve(self.closest_obstacle_distance, self.obstacle_angle, self.scenario)
 
         # If there is no similar case
-        if v_case is None or w_case is None:
+        if case is None:
 
             print("No similar case")
 
             return "New case"
+        
+        v_case = case[4]
+        w_case = case[5]
 
         # Revise and adjust new solution after DWA and Fuzzy
-        new_v, new_w = self.cbr.Revise(self.closest_obstacle_distance, self.best_v, self.best_w, main_dt, v_case, w_case)
+        new_v, new_w, situation = self.cbr.Revise(self.closest_obstacle_distance, self.best_v, self.best_w, main_dt, v_case, w_case)
 
         # If the new solution is better then the case one, update velocities
         if new_v is not None and new_w is not None:
@@ -640,17 +641,15 @@ class ObstacleAvoidance:
             self.best_v = new_v
             self.best_w = new_w
 
-            print("Modified case")
+            print(situation)
 
-            return "New case"
+            return situation
 
         else:
-            self.best_v = v_case
-            self.best_w = w_case
 
-            print("Old case")
+            print(situation)
 
-            return "Old case"
+            return situation
 
     def AdjustLaserScan(self, scan):
         """
@@ -666,9 +665,6 @@ class ObstacleAvoidance:
 
         # Apply average filter to smooth the Lidar readings and reduce noise
         self.valid_ranges = self.averageFilter(window_size=5)
-
-        # Apply DBSCAN to find clusters and classify the scenario
-        self.scenario = self.cbr.FindScenario(self.valid_ranges, self.v, time())
 
     ############################################################################
     # region MAIN CONTROL LOOP CALLBACK
@@ -704,14 +700,19 @@ class ObstacleAvoidance:
 
         if closest_in_fov_60 > self.safety_distance_to_start:
             closest_in_fov = closest_in_fov_260
-            self.obstacle_angle = np.degrees(obstacle_angle_260)
+            self.obstacle_angle = obstacle_angle_260
             safety_distance = 2.5
+            fov = 640
 
         else:
             # Minimun distance to start the avoidance behavior
             closest_in_fov = closest_in_fov_60
-            self.obstacle_angle = np.degrees(obstacle_angle_60)
+            self.obstacle_angle = obstacle_angle_60
             safety_distance = self.safety_distance_to_start
+            fov = 148
+
+        # Apply DBSCAN to find clusters and classify the scenario
+        self.scenario = self.cbr.FindScenario(self.valid_ranges, self.v, time(), fov_positions=fov)
 
         if closest_in_fov < safety_distance:
             self.closest_obstacle_distance = closest_in_fov
@@ -722,19 +723,24 @@ class ObstacleAvoidance:
             main_dt = time() - self.last_command_time
 
             if main_dt >= self.dt:
+
+                rospy.loginfo(
+                    f"BEFORE CBR -> Best v: {self.best_v} m/s, Best w: {self.best_w} rad/s")
                 
                 # CBR Analysis
                 case = self.CBRAnalysis(main_dt)
+
+                # Adjust velocities
+                self.best_v = min(self.best_v, self.max_v)
+                self.best_w = np.clip(self.best_w, -self.max_w, self.max_w)
 
                 self.setFlightMode(mode="GUIDED")
                 self.sendGuidedPointLocalFrame(
                     self.best_v, self.best_w)
                 self.last_command_time = time()
 
-                obstacle_angle = np.deg2rad(self.obstacle_angle)
-
                 # Retain performed obstacle avoidance
-                self.cbr.Retain(case, self.closest_obstacle_distance, obstacle_angle, self.scenario, self.best_v, self.best_w)
+                self.cbr.Retain(case, self.closest_obstacle_distance, self.obstacle_angle, self.scenario, self.best_v, self.best_w)
 
                 # Results conference
                 rospy.loginfo(
@@ -758,7 +764,8 @@ class ObstacleAvoidance:
 
         else:
             # Verify if the path is completely free ahead and on the sides, if so, finish the obstacle avoidance
-            if time() - self.last_command_time > 2*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_260 > 2.5 and closest_in_fov_60 > self.safety_distance_to_start:  # Define lateral distance to finish the avoidance
+            # if time() - self.last_command_time > 1.2*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_260 > 2.5 and closest_in_fov_60 > self.safety_distance_to_start:  # Define lateral distance to finish the avoidance
+            if time() - self.last_command_time > 1.1*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_260 > 2.5 and closest_in_fov_60 > self.safety_distance_to_start:
                 self.best_v = None
                 self.best_w = None
                 self.lidar_subdivisions = []
