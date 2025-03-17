@@ -11,7 +11,7 @@ class CBR:
         self.extra_margin = 0.2 # Extra margin to consider noise
         self.previous_time = None # Store previous time
 
-        self.tol = 0.2 # Tolerance for distance
+        self.tol = 0.1 # Tolerance for distance
 
         self.max_v = 2.55  # Maximum linear velocity 2.55
         self.max_w = np.pi  # Maximum angular velocity np.pi/2
@@ -183,7 +183,7 @@ class CBR:
 
         return new_min_dist
 
-    def Revise(self, min_dist, best_v, best_w, dt, v_case, w_case):
+    def Revise(self, min_dist, best_v, best_w, v_case, w_case, dt):
         """
         Revise and adjust new solution after DWA and Fuzzy.
         
@@ -191,6 +191,8 @@ class CBR:
             min_dist (float): Minimum distance to the obstacle.
             best_v (float): Best linear velocity.
             best_w (float): Best angular velocity.
+            v_case (float): Linear velocity from the past case.
+            w_case (float): Angular velocity from the past case.
             dt (float): Time step.
         
         Returns:
@@ -206,30 +208,41 @@ class CBR:
         diff_dist_case = abs(min_dist - dist_predicted_case)
 
         #-------------------------PROPOSE NEW VELOCITIES MODIFYING THE BEST-------------------------#
-        if diff_dist_best > self.tol:
-            # If the distance is greater than the desired, decrease the velocity
+        if diff_dist_best < self.tol:
             new_v = best_v * 0.8  
             new_w = best_w * 0.9 
 
-        elif diff_dist_best < self.tol:
-            # If the distance is smaller than the desired, increase the velocity
-            new_v = best_v * 1.2
-            new_w = best_w * 1.1
+        elif diff_dist_best > self.tol:
+            new_v = best_v * 1.1
+            new_w = best_w * 1.2
 
-        dist_predicted_modified = self.PredictDistance(min_dist, new_v, new_w , dt)
+        dist_predicted_modified = self.PredictDistance(min_dist, new_v, new_w, dt)
         diff_modified = abs(min_dist - dist_predicted_modified)
     
-        #---------------CHECK IF IT'LL WON'T CRASH------------------#
+        # #---------------CHECK IF IT'LL WON'T CRASH WITH THE BEST VELOCITIES------------------#
+
+        # safe_v_max, safe_w_max = self.dynamicWindowSafetyStop(
+        #     min_dist, new_w)
+        
+        # if safe_w_max > 0 and new_w > 0:
+
+        #     if safe_v_max < new_v or safe_w_max < new_w:
+        #         return None, None, "New case" # Send the best if it's not safe
+        # else:
+        #     if safe_v_max < new_v or safe_w_max > new_w:
+        #         return None, None, "New case"  # Send the best if it's not safe
+            
+        #---------------CHECK IF IT'LL WON'T CRASH WITH THE VELOCITIES FROM CASE-----------------#
 
         safe_v_max, safe_w_max = self.dynamicWindowSafetyStop(
-            min_dist, new_w)
+            min_dist, w_case)
         
-        if safe_w_max > 0 and new_w > 0:
+        if safe_w_max > 0 and w_case > 0:
 
-            if safe_v_max < new_v or safe_w_max < new_w:
+            if safe_v_max < new_v or safe_w_max < w_case:
                 return None, None, "New case" # Send the best if it's not safe
         else:
-            if safe_v_max < new_v or safe_w_max > new_w:
+            if safe_v_max < new_v or safe_w_max > w_case:
                 return None, None, "New case"  # Send the best if it's not safe
 
         #---------------COMPARE TO SEE WHICH VELOCITY IS BETTER------------------#
@@ -240,6 +253,17 @@ class CBR:
             return v_case, w_case, "Old Case"   
             
     def Retain(self, case, min_dist, angle, scenario, v, w):
+        """
+        Retain new case in the database.
+        
+        Args:
+            case (str): If case will be retained.
+            min_dist (float): Minimum distance to the obstacle.
+            angle (float): Angle to the obstacle.
+            scenario (str): Scenario.
+            v (float): Linear velocity.
+            w (float): Angular velocity.
+        """
 
         if case == "New case":
 

@@ -393,10 +393,8 @@ class ObstacleAvoidance:
             max_w (float): maximal angular velocity."""
 
         # Calculate dynamic window
-        # The second part simulates the maximum deceleration
-        min_v = max(self.min_v, self.v - self.max_acc_v * self.dt)
-        # The second part simulates the maximum acceleration
-        max_v = min(self.max_v, self.v + self.max_acc_v * self.dt)
+        min_v = max(self.min_v, self.v - self.max_acc_v * self.dt) # The second part simulates the maximum deceleration
+        max_v = min(self.max_v, self.v + self.max_acc_v * self.dt) # The second part simulates the maximum acceleration
         min_w = max(-self.max_w, self.w - self.max_acc_w * self.dt)
         max_w = min(self.max_w, self.w + self.max_acc_w * self.dt)
 
@@ -409,6 +407,7 @@ class ObstacleAvoidance:
 
         Args:
             dist_obst (float): distance to the closest obstacle.
+            w (float): angular velocity.
         Returns:
             safe_v_max (float): maximal linear velocity to stop in time,
             safe_w_max (float): maximal angular velocity to stop in time."""
@@ -534,8 +533,6 @@ class ObstacleAvoidance:
     def replanVelocity(self):
         """Method to plan dynamic route.
 
-        Args:
-            scan (LaserScan): Lidar data.
         Returns:
             best_v (float): best linear velocity,
             best_w (float): best angular velocity."""
@@ -555,7 +552,7 @@ class ObstacleAvoidance:
         and its angle relative to the LIDAR.
 
         Args:
-            fov_positions: Number of positions in the central field of view (75 positions ≈ 30 degrees, 160 positions = 90 degrees).
+            fov_positions: Number of positions in the central field of view.
             center_index: Central index of the Lidar readings list (approximately 320).
 
         Returns:
@@ -589,7 +586,6 @@ class ObstacleAvoidance:
         Apply average filter to smooth Lidar distance readings.
 
         Args:
-            lidar_ranges: List of Lidar distance readings.
             window_size: Size of the moving average window.
 
         Returns:
@@ -633,7 +629,7 @@ class ObstacleAvoidance:
         w_case = case[5]
 
         # Revise and adjust new solution after DWA and Fuzzy
-        new_v, new_w, situation = self.cbr.Revise(self.closest_obstacle_distance, self.best_v, self.best_w, main_dt, v_case, w_case)
+        new_v, new_w, situation = self.cbr.Revise(self.closest_obstacle_distance, self.best_v, self.best_w, v_case, w_case, main_dt)
 
         # If the new solution is better then the case one, update velocities
         if new_v is not None and new_w is not None:
@@ -764,7 +760,6 @@ class ObstacleAvoidance:
 
         else:
             # Verify if the path is completely free ahead and on the sides, if so, finish the obstacle avoidance
-            # if time() - self.last_command_time > 1.2*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_260 > 2.5 and closest_in_fov_60 > self.safety_distance_to_start:  # Define lateral distance to finish the avoidance
             if time() - self.last_command_time > 1.1*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_260 > 2.5 and closest_in_fov_60 > self.safety_distance_to_start:
                 self.best_v = None
                 self.best_w = None
