@@ -65,7 +65,7 @@ class CaseDatabase:
         except Exception as e:
             print(f"Erro ao adicionar caso: {e}")
 
-    def SearchSimilarCase(self, distancia_obstaculo, angulo_obstaculo, cenario, tolerance_distance=3.0, tolerance_angle=3.14):
+    def SearchSimilarCase(self, distancia_obstaculo, angulo_obstaculo, cenario, tolerance_distance=1.5, tolerance_angle=0.7):
         """
         Search for similar cases in the database.
         

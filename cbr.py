@@ -11,12 +11,13 @@ class CBR:
         self.extra_margin = 0.2 # Extra margin to consider noise
         self.previous_time = None # Store previous time
 
-        self.tol = 0.1 # Tolerance for distance
+        self.tol = 0.2 # Tolerance for distance
 
         self.max_v = 2.55  # Maximum linear velocity 2.55
         self.max_w = np.pi  # Maximum angular velocity np.pi/2
         self.max_acc_v = 0.5  # Maximum linear acceleration 0.5
         self.max_acc_w = np.pi/2  # Maximum angular acceleration
+        self.safety_distance = 1.0 # meter
 
         # DataBase
         self.db = cases.CaseDatabase()
@@ -179,7 +180,7 @@ class CBR:
         dTheta = w*dt # Angular displacement
 
         # Cosine rule
-        new_min_dist = dS**2 + dist_inicial**2 + -2*dS*dist_inicial*math.cos(dTheta)
+        new_min_dist = dS**2 + dist_inicial**2 - 2*dS*dist_inicial*math.cos(dTheta)
 
         return new_min_dist
 
@@ -198,60 +199,42 @@ class CBR:
         Returns:
             tuple: New linear and angular velocities.
         """
+        # Modified case
+        new_v = v_case * 1.1
+        new_w = w_case * 1.2
 
-        # Distance to the obstacle after performing the best velocities
-        dist_predicted_best = self.PredictDistance(min_dist, best_v, best_w, dt) # Use velocities from DWA and Fuzzy
-        dist_predicted_case = self.PredictDistance(min_dist, v_case, w_case, dt) # Use velocities from past case
-
-        # Distance difference between the predicted and the actual distance
-        diff_dist_best = abs(min_dist - dist_predicted_best)
-        diff_dist_case = abs(min_dist - dist_predicted_case)
-
-        #-------------------------PROPOSE NEW VELOCITIES MODIFYING THE BEST-------------------------#
-        if diff_dist_best < self.tol:
-            new_v = best_v * 0.8  
-            new_w = best_w * 0.9 
-
-        elif diff_dist_best > self.tol:
-            new_v = best_v * 1.1
-            new_w = best_w * 1.2
-
-        dist_predicted_modified = self.PredictDistance(min_dist, new_v, new_w, dt)
-        diff_modified = abs(min_dist - dist_predicted_modified)
-    
-        # #---------------CHECK IF IT'LL WON'T CRASH WITH THE BEST VELOCITIES------------------#
-
-        # safe_v_max, safe_w_max = self.dynamicWindowSafetyStop(
-        #     min_dist, new_w)
-        
-        # if safe_w_max > 0 and new_w > 0:
-
-        #     if safe_v_max < new_v or safe_w_max < new_w:
-        #         return None, None, "New case" # Send the best if it's not safe
-        # else:
-        #     if safe_v_max < new_v or safe_w_max > new_w:
-        #         return None, None, "New case"  # Send the best if it's not safe
-            
-        #---------------CHECK IF IT'LL WON'T CRASH WITH THE VELOCITIES FROM CASE-----------------#
-
+        # Check if it'll crash with the velocities from the modified case
         safe_v_max, safe_w_max = self.dynamicWindowSafetyStop(
-            min_dist, w_case)
+            min_dist, new_w)
         
-        if safe_w_max > 0 and w_case > 0:
+        if safe_w_max > 0 and new_w > 0:
 
-            if safe_v_max < new_v or safe_w_max < w_case:
+            if safe_v_max < new_v or safe_w_max < new_w:
                 return None, None, "New case" # Send the best if it's not safe
         else:
-            if safe_v_max < new_v or safe_w_max > w_case:
+            if safe_v_max < new_v or safe_w_max > new_w:
                 return None, None, "New case"  # Send the best if it's not safe
+        
+        # Stops the velocities from growing too much
+        if new_v > best_v * 1.2:  
+            new_v = best_v * 1.2
+        if new_w > best_w * 1.3:
+            new_w = best_w * 1.3
 
-        #---------------COMPARE TO SEE WHICH VELOCITY IS BETTER------------------#
-
-        if diff_modified < diff_dist_case:
-            return new_v, new_w, "New case"
+        # Distance to the obstacle after performing the best velocities and the modified ones
+        dist_predicted_best = self.PredictDistance(min_dist, best_v, best_w, dt) # Use velocities from DWA and Fuzzy
+        dist_predicted_case = self.PredictDistance(min_dist, new_v, new_w, dt) # Use velocities from past case
+        
+        # Lower limit to prevent the robot from staying too close to the obstacle
+        if dist_predicted_case < self.safety_distance:
+            return None, None, "New case"
+        
+        # Keep stability, so the robot doesn't oscillate too much
+        if abs(dist_predicted_best - dist_predicted_case) < self.tol:
+            return None, None, "New case"
         else:
-            return v_case, w_case, "Old Case"   
-            
+            return new_v, new_w, "Modified case"
+
     def Retain(self, case, min_dist, angle, scenario, v, w):
         """
         Retain new case in the database.

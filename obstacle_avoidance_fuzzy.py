@@ -60,8 +60,8 @@ class ObstacleAvoidance:
         self.min_dist_lidar_subdivisions = []  # Minimum distance of lidar subdivisions
         self.waypoints_reached = 0  # Waypoints reached counter
 
-        self.v_reso = 25  # Linear velocity resolution 25
-        self.w_reso = 25  # Angular velocity resolution 25
+        self.v_reso = 10  # Linear velocity resolution 25
+        self.w_reso = 10  # Angular velocity resolution 25
 
         self.alpha = 0  # Robot alignment to the objective
         self.beta = 0  # Distance to the obstacle
@@ -637,13 +637,13 @@ class ObstacleAvoidance:
             self.best_v = new_v
             self.best_w = new_w
 
-            print(situation)
+            print("Modified case")
 
             return situation
 
         else:
 
-            print(situation)
+            print("New case")
 
             return situation
 
