@@ -50,7 +50,7 @@ class ObstacleAvoidance:
         self.best_v = None  # Best linear velocity
         self.best_w = None  # Best angular velocity
         self.min_v = 0.0  # Minimum linear velocity
-        self.max_acc_v = 0.5  # Maximum linear acceleration 0.5
+        self.max_acc_v = 0.9 #0.5  # Maximum linear acceleration 0.5
         self.max_acc_w = np.pi/2  # Maximum angular acceleration
         self.safety_distance_to_start = 6.0  # [meters] 5
         self.valid_ranges = None  # Lidar valid ranges
@@ -60,8 +60,8 @@ class ObstacleAvoidance:
         self.min_dist_lidar_subdivisions = []  # Minimum distance of lidar subdivisions
         self.waypoints_reached = 0  # Waypoints reached counter
 
-        self.v_reso = 10  # Linear velocity resolution 25
-        self.w_reso = 10  # Angular velocity resolution 25
+        self.v_reso = 15  # Linear velocity resolution 25
+        self.w_reso = 15  # Angular velocity resolution 25
 
         self.alpha = 0  # Robot alignment to the objective
         self.beta = 0  # Distance to the obstacle
@@ -150,11 +150,14 @@ class ObstacleAvoidance:
 
         current_time = msg.header.stamp.to_sec()
 
+        # rospy.loginfo(self.v)
+
         # Calcula aceleração se houver uma velocidade anterior registrada
         if hasattr(self, 'previous_velocity') and hasattr(self, 'previous_time'):
             self.dt = current_time - self.previous_time
-            if self.dt > 0:
-                self.acceleration = (self.v - self.previous_velocity) / self.dt
+            # if self.dt > 0:
+            #     self.acceleration = (self.v - self.previous_velocity) / self.dt
+            #     rospy.loginfo(self.acceleration)
 
         # Armazena a velocidade e o tempo atuais para a próxima leitura
         self.previous_velocity = self.v
@@ -462,8 +465,11 @@ class ObstacleAvoidance:
         else:
             dist_obst = self.closest_obstacle_distance
 
+        # Change angle from rad to degree just for the fuzzy logic
+        obstacle_angle = np.degrees(self.obstacle_angle)
+
         # Apply fuzzy logic to discover alpha, beta and gamma
-        self.alpha, self.beta, self.gamma = self.fuzzy.IsolatedObstacle(self.obstacle_angle, dist_obst)
+        self.alpha, self.beta, self.gamma = self.fuzzy.IsolatedObstacle(obstacle_angle, dist_obst)
 
         for v in np.linspace(min_v, max_v, num=self.v_reso):
             for w in np.linspace(min_w, max_w, num=self.w_reso):
@@ -690,15 +696,19 @@ class ObstacleAvoidance:
         closest_in_fov_60, obstacle_angle_60 = self.closestObstacleInCentralFov(
             fov_positions=148)
 
-        # Verify the distance to the closest obstacle for 270 degrees in front of the robot
-        closest_in_fov_260, obstacle_angle_260 = self.closestObstacleInCentralFov(
-            fov_positions=640)
+        # # Verify the distance to the closest obstacle for 260 degrees in front of the robot
+        # closest_in_fov_260, obstacle_angle_260 = self.closestObstacleInCentralFov(
+        #     fov_positions=640)
+        
+        # Verify the distance to the closest obstacle for 260 degrees in front of the robot
+        closest_in_fov_180, obstacle_angle_180 = self.closestObstacleInCentralFov(
+            fov_positions=443)
 
         if closest_in_fov_60 > self.safety_distance_to_start:
-            closest_in_fov = closest_in_fov_260
-            self.obstacle_angle = obstacle_angle_260
-            safety_distance = 2.5
-            fov = 640
+            closest_in_fov = closest_in_fov_180
+            self.obstacle_angle = obstacle_angle_180
+            safety_distance = 3.0
+            fov = 443
 
         else:
             # Minimun distance to start the avoidance behavior
@@ -745,6 +755,8 @@ class ObstacleAvoidance:
                     f"Alpha: {self.alpha}, Beta: {self.beta}, Gamma: {self.gamma}")
                 rospy.loginfo(
                     f"Best v: {self.best_v} m/s, Best w: {self.best_w} rad/s")
+                rospy.loginfo(
+                    " ")
 
                 self.goal_distance, self.goal_angle = self.targetWaypoint(
                     False)
@@ -760,7 +772,7 @@ class ObstacleAvoidance:
 
         else:
             # Verify if the path is completely free ahead and on the sides, if so, finish the obstacle avoidance
-            if time() - self.last_command_time > 1.1*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_260 > 2.5 and closest_in_fov_60 > self.safety_distance_to_start:
+            if time() - self.last_command_time > 1.1*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_180 > 3.0 and closest_in_fov_60 > self.safety_distance_to_start:
                 self.best_v = None
                 self.best_w = None
                 self.lidar_subdivisions = []

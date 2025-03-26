@@ -11,13 +11,13 @@ class CBR:
         self.extra_margin = 0.2 # Extra margin to consider noise
         self.previous_time = None # Store previous time
 
-        self.tol = 0.2 # Tolerance for distance
+        self.tol = 0.1 # Tolerance for distance
 
         self.max_v = 2.55  # Maximum linear velocity 2.55
         self.max_w = np.pi  # Maximum angular velocity np.pi/2
-        self.max_acc_v = 0.5  # Maximum linear acceleration 0.5
+        self.max_acc_v = 0.9 #0.5  # Maximum linear acceleration 0.5
         self.max_acc_w = np.pi/2  # Maximum angular acceleration
-        self.safety_distance = 1.0 # meter
+        self.safety_distance = 1.5 # meter
 
         # DataBase
         self.db = cases.CaseDatabase()
@@ -207,12 +207,17 @@ class CBR:
         safe_v_max, safe_w_max = self.dynamicWindowSafetyStop(
             min_dist, new_w)
         
+        # print("safe_vel=", safe_v_max, safe_w_max)
+        # print("new_vel=", new_v, new_w)
+        
         if safe_w_max > 0 and new_w > 0:
 
             if safe_v_max < new_v or safe_w_max < new_w:
+                print("Not safe")
                 return None, None, "New case" # Send the best if it's not safe
         else:
             if safe_v_max < new_v or safe_w_max > new_w:
+                print("Not safe")
                 return None, None, "New case"  # Send the best if it's not safe
         
         # Stops the velocities from growing too much
@@ -227,10 +232,12 @@ class CBR:
         
         # Lower limit to prevent the robot from staying too close to the obstacle
         if dist_predicted_case < self.safety_distance:
+            print("Too close to the obstacle")
             return None, None, "New case"
         
         # Keep stability, so the robot doesn't oscillate too much
         if abs(dist_predicted_best - dist_predicted_case) < self.tol:
+            print("Not that diferent")
             return None, None, "New case"
         else:
             return new_v, new_w, "Modified case"

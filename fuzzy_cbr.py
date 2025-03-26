@@ -29,9 +29,13 @@ class Fuzzy:
         self.distance_to_obstacle['distant'] = fuzz.sigmf(
         self.distance_to_obstacle.universe, 4.0, 6)
 
-        self.angle['lateral_left'] = fuzz.trapmf(self.angle.universe, [-180, -120, -60, -30])
-        self.angle['frontal'] = fuzz.gaussmf(self.angle.universe, 0, 10)  # Média 0, desvio 20 para suavizar
-        self.angle['lateral_right'] = fuzz.trapmf(self.angle.universe, [30, 60, 120, 180])
+        # self.angle['lateral_left'] = fuzz.trapmf(self.angle.universe, [-180, -120, -60, -30])
+        # self.angle['frontal'] = fuzz.gaussmf(self.angle.universe, 0, 10)  # Média 0, desvio 20 para suavizar
+        # self.angle['lateral_right'] = fuzz.trapmf(self.angle.universe, [30, 60, 120, 180])
+
+        self.angle['lateral_left'] = fuzz.sigmf(self.angle.universe, -20, -0.1)  
+        self.angle['frontal'] = fuzz.gaussmf(self.angle.universe, 0, 10)  
+        self.angle['lateral_right'] = fuzz.sigmf(self.angle.universe, 20, 0.1)  
 
         # Define membership functions for output variables
         self.alpha['low'] = fuzz.trimf(self.alpha.universe, [0, 0, 0.5])
@@ -41,6 +45,10 @@ class Fuzzy:
         self.beta['low'] = fuzz.trimf(self.beta.universe, [0, 3.0, 6.0])
         self.beta['medium'] = fuzz.trimf(self.beta.universe, [5.0, 7.0, 7.0])
         self.beta['high'] = fuzz.trimf(self.beta.universe, [7.0, 10, 10])
+
+        # self.beta['low'] = fuzz.trimf(self.beta.universe, [0, 0, 0.5])
+        # self.beta['medium'] = fuzz.trimf(self.beta.universe, [0.4, 0.6, 0.6])
+        # self.beta['high'] = fuzz.trimf(self.beta.universe, [0.6, 1, 1])
 
         self.gamma['low'] = fuzz.trimf(self.gamma.universe, [0, 0, 0.6])
         self.gamma['medium'] = fuzz.trimf(self.gamma.universe, [0.5, 0.7, 0.7])
@@ -63,13 +71,13 @@ class Fuzzy:
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['frontal'], self.gamma['low']))
 
         # OK
-        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_right'], self.alpha['high']))
-        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_right'], self.beta['low']))
+        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_right'], self.alpha['medium']))
+        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_right'], self.beta['high']))
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_right'], self.gamma['low']))
 
         # OK
-        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_left'], self.alpha['high']))
-        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_left'], self.beta['low']))
+        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_left'], self.alpha['medium']))
+        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_left'], self.beta['high']))
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['near'] & self.angle['lateral_left'], self.gamma['low']))
 
         # OK
@@ -89,7 +97,7 @@ class Fuzzy:
 
         # OK
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.alpha['medium']))
-        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.beta['high']))
+        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.beta['medium']))
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.gamma['low']))
         
         # OK
@@ -130,5 +138,7 @@ class Fuzzy:
     
 if __name__ == '__main__':
     fuzzy = Fuzzy()
-    alpha, beta, gamma = fuzzy.IsolatedObstacle(8.975979, 2.976854)
+    angle  = np.rad2deg(-1.467691395431757)
+    print(angle)
+    alpha, beta, gamma = fuzzy.IsolatedObstacle(1.9590510845184328, angle)
     print(alpha, beta, gamma)
