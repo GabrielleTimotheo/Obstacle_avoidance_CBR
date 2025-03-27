@@ -11,13 +11,13 @@ class CBR:
         self.extra_margin = 0.2 # Extra margin to consider noise
         self.previous_time = None # Store previous time
 
-        self.tol = 0.1 # Tolerance for distance
+        self.tol = 0.2 # Tolerance for distance
 
         self.max_v = 2.55  # Maximum linear velocity 2.55
         self.max_w = np.pi  # Maximum angular velocity np.pi/2
         self.max_acc_v = 0.9 #0.5  # Maximum linear acceleration 0.5
         self.max_acc_w = np.pi/2  # Maximum angular acceleration
-        self.safety_distance = 1.5 # meter
+        self.safety_distance = 2.0 # meter
 
         # DataBase
         self.db = cases.CaseDatabase()
@@ -239,8 +239,12 @@ class CBR:
         if abs(dist_predicted_best - dist_predicted_case) < self.tol:
             print("Not that diferent")
             return None, None, "New case"
-        else:
+        
+        # Keeps the robot close to the obstacle, but not too close
+        if dist_predicted_case < dist_predicted_best:
             return new_v, new_w, "Modified case"
+        else:
+            return None, None, "New case"
 
     def Retain(self, case, min_dist, angle, scenario, v, w):
         """

@@ -9,17 +9,9 @@ class Fuzzy:
         self.distance_to_obstacle = ctrl.Antecedent(np.arange(0, 6, 0.1), 'distance_to_obstacle')
         self.angle = ctrl.Antecedent(np.arange(-120, 120, 1), 'angle')
 
-        self.alpha = ctrl.Consequent(np.arange(0, 1, 0.1), 'alpha')
+        self.alpha = ctrl.Consequent(np.arange(0, 10, 1), 'alpha')
         self.beta = ctrl.Consequent(np.arange(0, 10, 1), 'beta')
-        self.gamma = ctrl.Consequent(np.arange(0, 1, 0.1), 'gamma')
-
-        # # Define membership functions for input variables
-        # self.distance_to_obstacle['near'] = fuzz.sigmf(
-        # self.distance_to_obstacle.universe, 2.5, -6)
-        # self.distance_to_obstacle['medium'] = fuzz.gaussmf(
-        # self.distance_to_obstacle.universe, 3.5, 0.3)
-        # self.distance_to_obstacle['distant'] = fuzz.sigmf(
-        # self.distance_to_obstacle.universe, 4.5, 6)
+        self.gamma = ctrl.Consequent(np.arange(0, 10, 1), 'gamma')
 
         # Define membership functions for input variables
         self.distance_to_obstacle['near'] = fuzz.sigmf(
@@ -38,9 +30,14 @@ class Fuzzy:
         self.angle['lateral_right'] = fuzz.sigmf(self.angle.universe, 20, 0.1)  
 
         # Define membership functions for output variables
-        self.alpha['low'] = fuzz.trimf(self.alpha.universe, [0, 0, 0.5])
-        self.alpha['medium'] = fuzz.trimf(self.alpha.universe, [0.4, 0.6, 0.6])
-        self.alpha['high'] = fuzz.trimf(self.alpha.universe, [0.6, 1, 1])
+
+        self.alpha['low'] = fuzz.trimf(self.alpha.universe, [0, 0, 5.0])
+        self.alpha['medium'] = fuzz.trimf(self.alpha.universe, [4.0, 6.0, 6.0])
+        self.alpha['high'] = fuzz.trimf(self.alpha.universe, [6.0, 10, 10])
+
+        # self.alpha['low'] = fuzz.trimf(self.alpha.universe, [0, 0, 0.5])
+        # self.alpha['medium'] = fuzz.trimf(self.alpha.universe, [0.4, 0.6, 0.6])
+        # self.alpha['high'] = fuzz.trimf(self.alpha.universe, [0.6, 1, 1])
 
         self.beta['low'] = fuzz.trimf(self.beta.universe, [0, 3.0, 6.0])
         self.beta['medium'] = fuzz.trimf(self.beta.universe, [5.0, 7.0, 7.0])
@@ -50,9 +47,13 @@ class Fuzzy:
         # self.beta['medium'] = fuzz.trimf(self.beta.universe, [0.4, 0.6, 0.6])
         # self.beta['high'] = fuzz.trimf(self.beta.universe, [0.6, 1, 1])
 
-        self.gamma['low'] = fuzz.trimf(self.gamma.universe, [0, 0, 0.6])
-        self.gamma['medium'] = fuzz.trimf(self.gamma.universe, [0.5, 0.7, 0.7])
-        self.gamma['high'] = fuzz.trimf(self.gamma.universe, [0.7, 1, 1])
+        self.gamma['low'] = fuzz.trimf(self.gamma.universe, [0, 0, 6.0])
+        self.gamma['medium'] = fuzz.trimf(self.gamma.universe, [5.0, 7.0, 7.0])
+        self.gamma['high'] = fuzz.trimf(self.gamma.universe, [7.0, 10, 10])
+
+        # self.gamma['low'] = fuzz.trimf(self.gamma.universe, [0, 0, 0.6])
+        # self.gamma['medium'] = fuzz.trimf(self.gamma.universe, [0.5, 0.7, 0.7])
+        # self.gamma['high'] = fuzz.trimf(self.gamma.universe, [0.7, 1, 1])
 
         # Plot graphs of relevance (optional)
         # self.distance_to_obstacle.view()
@@ -86,7 +87,7 @@ class Fuzzy:
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['medium'] & self.angle['frontal'], self.gamma['low']))
 
         # OK
-        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['medium'] & self.angle['lateral_right'], self.alpha['high']))
+        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['medium'] & self.angle['lateral_right'], self.alpha['medium']))
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['medium'] & self.angle['lateral_right'], self.beta['low']))
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['medium'] & self.angle['lateral_right'], self.gamma['low']))
 
@@ -96,7 +97,7 @@ class Fuzzy:
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['medium'] & self.angle['lateral_left'], self.gamma['low']))
 
         # OK
-        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.alpha['medium']))
+        rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.alpha['low']))
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.beta['medium']))
         rules_isolated.append(ctrl.Rule(self.distance_to_obstacle['distant'] & self.angle['frontal'], self.gamma['low']))
         

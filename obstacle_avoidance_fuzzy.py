@@ -60,8 +60,8 @@ class ObstacleAvoidance:
         self.min_dist_lidar_subdivisions = []  # Minimum distance of lidar subdivisions
         self.waypoints_reached = 0  # Waypoints reached counter
 
-        self.v_reso = 15  # Linear velocity resolution 25
-        self.w_reso = 15  # Angular velocity resolution 25
+        self.v_reso = 12  # Linear velocity resolution 25
+        self.w_reso = 12  # Angular velocity resolution 25
 
         self.alpha = 0  # Robot alignment to the objective
         self.beta = 0  # Distance to the obstacle
@@ -707,7 +707,7 @@ class ObstacleAvoidance:
         if closest_in_fov_60 > self.safety_distance_to_start:
             closest_in_fov = closest_in_fov_180
             self.obstacle_angle = obstacle_angle_180
-            safety_distance = 3.0
+            safety_distance = 2.5
             fov = 443
 
         else:
@@ -772,7 +772,7 @@ class ObstacleAvoidance:
 
         else:
             # Verify if the path is completely free ahead and on the sides, if so, finish the obstacle avoidance
-            if time() - self.last_command_time > 1.1*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_180 > 3.0 and closest_in_fov_60 > self.safety_distance_to_start:
+            if time() - self.last_command_time > 1.1*self.dt and self.current_state.mode != "AUTO" and closest_in_fov_180 > 2.5 and closest_in_fov_60 > self.safety_distance_to_start:
                 self.best_v = None
                 self.best_w = None
                 self.lidar_subdivisions = []
